@@ -36,6 +36,10 @@ library(dplyr)
 library(lattice)
 library(lubridate)
 
+## basic configuration
+
+nb_top_event = 20
+
 bzstormfile <- "stormdata.bz2" # just for file name consistency
 
 if(!file.exists(bzstormfile)) { # no need to download everytime we run
@@ -47,40 +51,91 @@ if(!file.exists(bzstormfile)) { # no need to download everytime we run
 storm <- read.csv(bzstormfile)
 
 dstorm <- tbl_df(storm)
-
-
 warning("BGN_TIME and END_TIME format are not consistent across observation. Needs cleanup if using it")
 # to convert ABCD format into AB:CD format, use the command below
 # xtime = gsub('^([0-9]{2})([0-9]+)$', '\\1:\\2',xtime)
 # dstorm <- mutate(dstorm, start_date = mdy_hms(BGN_DATE), stop_date = mdy_hms(END_DATE), ....)
 ```
-### harmful to health columns
+
+## Data contained in file
+```{r cache=TRUE}
+str(storm)
+
+```
+#### fields indicating harm to health 
 
 1. FATALITIES
 2. INJURIES
 
-### economic consequences
+#### fields indicating economic consequences
 
 1. PROPDMG
 2. PROPDMGEXP
 3. CROPDMG
 4. CROPDMGEXP
 
-```{r}
+```{r cache=TRUE, fig.width=800, fig.height=800}
 #freeing up some memory by selecting necessary columns only
 
-storm_damage <- dstorm %>% select(STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>% group_by(EVTYPE)
+storm_damage <- dstorm %>% select(STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>% group_by(EVTYPE) 
+
+# stat_human_injury <- storm_damage %>% 
+#                         mutate(total_fatal_event = sum(FATALITIES>0), total_fatalities = sum(FATALITIES),
+#                                 total_harmful_event = sum(INJURIES>0), total_injuries = sum(INJURIES)) %>% 
+#                         arrange(desc(total_fatalities), desc(total_injuries))
+
+
+fatal_event <- storm_damage %>% summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0)) %>% arrange(desc(total_fatalities), desc(total_fatal_event))
+
+harmful_event <- storm_damage %>% summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0),
+                                            total_injuries = sum(INJURIES), total_injury_event=sum(INJURIES>0), 
+                                            fatalities_per_event = total_fatalities/total_fatal_event, 
+                                            injuries_per_event = total_injuries/total_injury_event) %>% 
+    arrange(desc(total_fatalities), desc(total_injuries), desc(total_fatal_event), desc(total_injury_event))
+
+top_harmful_event <-  harmful_event[1:nb_top_event,]
+
+x_max = max(top_harmful_event$total_fatalities);
+
+par(mar=c(4,14,8,4), cex=0.75, las=1, mfrow=c(2,2))
+barplot(top_harmful_event$total_fatalities, 
+        horiz=TRUE, 
+        names.arg = top_harmful_event$EVTYPE, 
+        xlim = c(0, ceiling(max(top_harmful_event$total_fatalities)/1000)*1000), 
+        ylim=c(0,nb_top_event), 
+        main=paste0("Total Fatalities of the top ", nb_top_event, " Event Type"), 
+        xlab ="Total Fatalities", 
+        ylab = ""
+    )
+
+x_max = max(top_harmful_event$total_injuries);
+
+barplot(top_harmful_event$total_injuries, 
+        horiz=TRUE, 
+        names.arg = top_harmful_event$EVTYPE, 
+        xlim = c(0, ceiling(x_max/10^floor(log10(x_max)))*10^floor(log10(x_max))), 
+        
+        ylim=c(0,nb_top_event), 
+        main=paste0("Total Injuries of the top ", nb_top_event, " Event Type"), 
+        xlab ="Total Fatalities", 
+        ylab = ""
+    )
+
 
 #verify that there is no missing values in the selected subset
 
-number.of.na <- length(which(is.na(storm_damage)))
+number.of.na <- length(which(is.na(harmful_event)))
 number.of.na
 
 ```
-! canot do anything outside
-~ may use cache=TRUE
+## Results 
+### Harm to population
 
-## Results - TODO
+```{r cache=TRUE}
+
+
+
+```
 
 
     The analysis document must have at least one figure containing a plot.
