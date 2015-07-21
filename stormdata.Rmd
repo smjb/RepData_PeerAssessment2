@@ -20,6 +20,7 @@ The following codes initialize the session. It loads the required library, set t
 # loading libraries
 
 require(dplyr)
+require(knitr)
 
 ## basic configuration setting
 
@@ -71,6 +72,8 @@ We observe that **tornado** and **excessive heat** harm the population the most 
 Tornado causes far more human loss compared to other events.
 
 Economic lost due to property damages is much higher compared to crop damages.
+
+We also show the average loss per event as additional information to be potentially considered in the decision making.
 
 #Analysis objective
 
@@ -173,10 +176,12 @@ Only the top `r nb_top_event` events are selected based on the order enumerated 
 
 ```{r human_loss, cache=TRUE}
 harmful_event <- storm_damage %>% 
-                summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0),
-                          total_injuries = sum(INJURIES), total_injury_event=sum(INJURIES>0), 
-                          fatalities_per_event = total_fatalities/total_fatal_event, 
-                          injuries_per_event = total_injuries/total_injury_event
+                summarise(total_fatalities = sum(FATALITIES),
+                          total_fatal_event=sum(FATALITIES>0),
+                          total_injuries = sum(INJURIES),
+                          total_injury_event=sum(INJURIES>0), 
+                          average_fatalities_per_event = total_fatalities/total_fatal_event, 
+                          average_injuries_per_event = total_injuries/total_injury_event
                           ) %>%
                 arrange(desc(total_fatalities), 
                         desc(total_injuries), 
@@ -227,6 +232,39 @@ barplot(top_harmful_event$total_injuries,
     )
 ```
 
+### Fatalities and injuries per event
+
+The table below shows 
+
+1. the average fatalities per event type, and
+2. the average injuries per event type
+
+Only the top `r nb_top_event` events are selected based on the order enumerated above.
+
+```{r harmful_per_event_stat, cache=TRUE}
+# rearrange harmful_event
+harmful_event <- harmful_event %>%
+                arrange(desc(average_fatalities_per_event),
+                        desc(average_injuries_per_event))
+
+top_harm_per_event <- harmful_event[1:nb_top_event, ] %>%
+                        select(EVTYPE, 
+                               total_fatal_event, 
+                               total_fatalities,
+                               average_fatalities_per_event, 
+                               total_injury_event,
+                               total_injuries,
+                               average_injuries_per_event)
+top_harm_per_event$average_fatalities_per_event <- round(top_harm_per_event$average_fatalities_per_event, 3)
+
+top_harm_per_event$average_injuries_per_event <- round(top_harm_per_event$average_injuries_per_event, 3)
+
+top_harm_per_event$average_injuries_per_event[is.nan(top_harm_per_event$average_injuries_per_event)]<-"_Not Applicable_"
+
+kable(top_harm_per_event)
+
+```
+
 ## Damage to the economy
 
 From the reduced dataset **storm_damage**, we summarize the economic damages by each of the event type based on 
@@ -243,13 +281,14 @@ economic_damage <- storm_damage %>%
                           total_prop_event=sum(PROPDMG>0),
                           total_crop_damage = sum(CROP_DAMAGE_VALUE),
                           total_crop_event=sum(CROPDMG>0),
-                          prop_damage_per_event = total_prop_event/total_prop_event, 
-                          crop_damage_per_event = total_crop_event/total_crop_event
+                          average_prop_damage_per_event = total_prop_damage/total_prop_event, 
+                          average_crop_damage_per_event = total_crop_damage/total_crop_event
                           ) %>%
                 arrange(desc(total_prop_damage+total_crop_damage), 
                         desc(total_prop_event), 
                         desc(total_crop_event)
                         )
+
 
 top_economic_damage <-  economic_damage[1:nb_top_event,]
 
@@ -280,4 +319,44 @@ barplot(bplot_data,
 legend("topright", legend = c("Property Damage", "Crop Damage"), fill=c("red","green"))
 ```
 
+### Economic property damages per event
+
+The table below shows the top `r nb_top_event` events based on the average property damages per event type.
+
+
+
+```{r prop_loss_per_event_stat, cache=TRUE}
+# rearrange harmful_event
+economic_damage <- economic_damage %>%
+                arrange(desc(average_prop_damage_per_event))
+
+top_prop_damage_per_event <- economic_damage[1:nb_top_event, ] %>%
+                        select(EVTYPE, 
+                               total_prop_event, 
+                               total_prop_damage,
+                               average_prop_damage_per_event)
+
+kable(top_prop_damage_per_event)
+
+```
+
+
+### Economic crop damages per event
+
+The table below shows the top `r nb_top_event` events based on the average crop damages per event type.
+
+```{r crop_loss_per_event_stat, cache=TRUE}
+# rearrange harmful_event
+economic_damage <- economic_damage %>%
+                arrange(desc(average_crop_damage_per_event))
+
+top_crop_damage_per_event <- economic_damage[1:nb_top_event, ] %>%
+                        select(EVTYPE, 
+                               total_crop_event, 
+                               total_crop_damage,
+                               average_crop_damage_per_event)
+
+kable(top_crop_damage_per_event)
+
+```
 
