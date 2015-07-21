@@ -1,45 +1,92 @@
 ---
-title: "Analysis Title"
+title: "Impact of Severe Weather Events in the US"
 author: "smjb"
-date: "July 13, 2015"
+date: "July 22, 2015"
 output: html_document
 ---
-#preamble - TODO
-    
-    You may have other sections in your analysis, but Data Processing and Results are required.
 
+# Preface
 
-##Megatitle - TODO
+This document is authored in RMarkdown language. The codes used are in R programming language and the transformation from the RMarkdown to the current document format is via R-package **knitr**. You will need the necessary R programming setup to rerun the RMarkdown file.
 
-Part of Reproductible Research - Peer Assignment 2
+This document is to fulfill the requirement for the Reproductible Research - Peer Assignment 2. It is a course offered by John Hopkins University Bloomberg School of Public Health on [Coursera](https://www.coursera.org/course/repdata). 
 
-##Synopsis - TODO
-! 10 sentence max
+# Initialization codes
 
-##Analysis objective
+The following codes initialize the session. It loads the required library, set the number of events to be displayed and define a simple function to convert suffix into number.
+
+```{r init_code, cache=TRUE, message=FALSE}
+## Initialization process ...
+# loading libraries
+
+require(dplyr)
+
+## basic configuration setting
+
+nb_top_event = 20
+
+## Simple function to convert the exponential code (K,M,B) to equivalent decimal. 
+## Note : This function return 1 to any other values as it is not defined in the
+## NATIONAL WEATHER SERVICE INSTRUCTION. This is because the value returned by this function will be multipled by something else. 1 is multiplication neutral.
+#
+## Extract from the NATIONAL WEATHER SERVICE INSTRUCTION 10-1605 [pd01016005curr.pdf | pg 12/97]
+# ----------------------------------------------------
+# Estimates should be rounded to three significant digits, followed by an alphabetical 
+# character signifying the magnitude of the number, i.e., 1.55B for $1,550,000,000. 
+# Alphabetical characters used to signify magnitude include 
+# "K" for thousands, "M" for millions, and "B" for billions. 
+# If additional precision is available, it may be provided in the narrative part of the entry.
+# ----------------------------------------------------
+
+multipler <- function(val) {
+    if(val=="" ) { # to speedup the function since most values are empty
+        mcoef <- 1
+    } else if(val=="k" | val=="K") {
+        mcoef <- 1000
+    } else if (val=="m" | val =="M") {
+        mcoef <- 1000000
+    } else if (val=="b" | val =="B") {
+        mcoef <- 1000000000
+    } else { 
+        mcoef <- 1
+    }
+    mcoef
+}
+
+```
+
+#Data Analysis Synopsis
+We aim to understand and answer some basic questions about severe weather events.
+
+Storm Data from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database is used to understand the impact to each storm type to the human health together with the economic consequences. 
+
+This report load the full database but uses only the top `r nb_top_event` events to understand the harm inflicted to the population health and top `r nb_top_event` events to show the economic consequenses.
+
+The top events for the harm caused are aggregated and sorted in descending order sequenced by total fatalities, total injuries, total fatal events and total injury events.
+
+The top events for the economic damages are aggregated and sorted in descending order sequenced by total damages to property and crops, total event with property damages and total events with crop damages 
+
+We observe that **tornado** and **excessive heat** harm the population the most whereas **flood** and **hurricane/typhoon** cause the most economic damages to the country. 
+
+Tornado causes far more human loss compared to other events.
+
+Economic lost due to property damages is much higher compared to crop damages.
+
+#Analysis objective
 
 This analysis is made to address the following questions:
 
 1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
-
 2. Across the United States, which types of events have the greatest economic consequences?
 
 This report is intended for a government or municipal manager who might be responsible for preparing for severe weather events and will need to prioritize resources for different types of events. However, this document  does not make any specific recommendations.
 
-##Data Processing - TODO
+#Data Preprocessing 
 
-```{r cache=TRUE, message=FALSE}
+The datafile is loaded directly from the website. The bzip2 compressed file is read directly using _read.csv_. The dataset will need much more cleansing if more fields are to be used.
 
-# loading libraries
-
-library(dplyr)
-library(lattice)
-library(lubridate)
-
-## basic configuration
-
-nb_top_event = 20
-
+#Data loading
+```{r load_data, cache=TRUE}
 bzstormfile <- "stormdata.bz2" # just for file name consistency
 
 if(!file.exists(bzstormfile)) { # no need to download everytime we run
@@ -49,10 +96,16 @@ if(!file.exists(bzstormfile)) { # no need to download everytime we run
 #read.csv can read bzfiles directly. Hooray!
 
 storm <- read.csv(bzstormfile)
+```
 
+```{r copy_data, include=FALSE, cache=TRUE}
+storm_copy = storm # debug purpose
+```
+
+```{r convert2tbldf, cache=TRUE}
 dstorm <- tbl_df(storm)
 warning("BGN_TIME and END_TIME format are not consistent across observation. Needs cleanup if using it")
-# to convert ABCD format into AB:CD format, use the command below
+# if need to to convert ABCD format into AB:CD format, use the commands below
 # xtime = gsub('^([0-9]{2})([0-9]+)$', '\\1:\\2',xtime)
 # dstorm <- mutate(dstorm, start_date = mdy_hms(BGN_DATE), stop_date = mdy_hms(END_DATE), ....)
 ```
@@ -60,53 +113,106 @@ warning("BGN_TIME and END_TIME format are not consistent across observation. Nee
 ## Data contained in file
 ```{r cache=TRUE}
 str(storm)
-
 ```
-#### fields indicating harm to health 
+
+### Fields indicating harm to health 
 
 1. FATALITIES
 2. INJURIES
 
-#### fields indicating economic consequences
+### Fields indicating economic consequences
 
 1. PROPDMG
 2. PROPDMGEXP
 3. CROPDMG
 4. CROPDMGEXP
 
-```{r cache=TRUE, fig.width=800, fig.height=800}
-#freeing up some memory by selecting necessary columns only
+#### Special note
 
-storm_damage <- dstorm %>% select(STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>% group_by(EVTYPE) 
+The data within **PROPDMGEXP** and **CROPDMGEXP** are dirty as it has more than the (K,M,B) values as shown below. We will use the function multipler defined above to translate the exponential code into numeric value and use 1 for the invalid values
 
-# stat_human_injury <- storm_damage %>% 
-#                         mutate(total_fatal_event = sum(FATALITIES>0), total_fatalities = sum(FATALITIES),
-#                                 total_harmful_event = sum(INJURIES>0), total_injuries = sum(INJURIES)) %>% 
-#                         arrange(desc(total_fatalities), desc(total_injuries))
+```{r show_EXP,cache=TRUE}
+table(storm$PROPDMGEXP)
+table(storm$CROPDMGEXP)
+```
 
+## Data extraction
+Only the relevant fields are extracted from the full dataset.Damage Exponent values are transformed accordingly using the function _multiplier_ defined above. The data is grouped by Event Type (**EVTYPE**)
 
-fatal_event <- storm_damage %>% summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0)) %>% arrange(desc(total_fatalities), desc(total_fatal_event))
+```{r extraction, cache=TRUE}
+# Selecting necessary columns only and 
+# insert real value of damages to properties and crop
+# add more needed colum into storm_damage if more detailed analysis is needed
 
-harmful_event <- storm_damage %>% summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0),
-                                            total_injuries = sum(INJURIES), total_injury_event=sum(INJURIES>0), 
-                                            fatalities_per_event = total_fatalities/total_fatal_event, 
-                                            injuries_per_event = total_injuries/total_injury_event) %>% 
-    arrange(desc(total_fatalities), desc(total_injuries), desc(total_fatal_event), desc(total_injury_event))
+storm_damage <- dstorm %>% 
+                select(STATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) %>% 
+                mutate(PROP_MULTIPLER = sapply(PROPDMGEXP, multipler),
+                       PROP_DAMAGE_VALUE=PROPDMG*PROP_MULTIPLER, 
+                       CROP_MULTIPLER = sapply(CROPDMGEXP, multipler),
+                       CROP_DAMAGE_VALUE=CROPDMG*CROP_MULTIPLER
+                      ) %>%
+                group_by(EVTYPE) 
+
+storm_damage
+```
+
+# Results 
+
+## Harm to the population health
+
+From the reduced dataset **storm_damage**, we summarize the harm inflicted by each of the event type based on 
+
+1. total fatalities
+2. total injuries
+3. number of fatal events
+4. number of events with injury
+
+Only the top `r nb_top_event` events are selected based on the order enumerated above.
+
+### Fatalities
+
+```{r human_loss, cache=TRUE}
+harmful_event <- storm_damage %>% 
+                summarise(total_fatalities = sum(FATALITIES), total_fatal_event=sum(FATALITIES>0),
+                          total_injuries = sum(INJURIES), total_injury_event=sum(INJURIES>0), 
+                          fatalities_per_event = total_fatalities/total_fatal_event, 
+                          injuries_per_event = total_injuries/total_injury_event
+                          ) %>%
+                arrange(desc(total_fatalities), 
+                        desc(total_injuries), 
+                        desc(total_fatal_event), 
+                        desc(total_injury_event)
+                        )
 
 top_harmful_event <-  harmful_event[1:nb_top_event,]
 
+```
+The fatalities is extremely high for **`r top_harmful_event$EVTYPE[1]`** followed by **`r top_harmful_event$EVTYPE[2]`**, **`r top_harmful_event$EVTYPE[3]`** and **`r top_harmful_event$EVTYPE[4]`**.
+
+```{r fatal_event_plot, cache=TRUE}
+par(mar=c(4,14,8,4), cex=0.75, las=1)
 x_max = max(top_harmful_event$total_fatalities);
 
-par(mar=c(4,14,8,4), cex=0.75, las=1, mfrow=c(2,2))
 barplot(top_harmful_event$total_fatalities, 
         horiz=TRUE, 
         names.arg = top_harmful_event$EVTYPE, 
-        xlim = c(0, ceiling(max(top_harmful_event$total_fatalities)/1000)*1000), 
+        xlim = c(0,ceiling(x_max/10^floor(log10(x_max)))*10^floor(log10(x_max))), 
         ylim=c(0,nb_top_event), 
         main=paste0("Total Fatalities of the top ", nb_top_event, " Event Type"), 
         xlab ="Total Fatalities", 
         ylab = ""
     )
+
+```
+
+### Injuries
+
+**`r top_harmful_event$EVTYPE[1]`** causes the most injuries. The other events causes much less injuries compared to **`r top_harmful_event$EVTYPE[1]`**.
+
+```{r injury_event_plot, cache=TRUE}
+x_max = max(top_harmful_event$total_fatalities);
+
+par(mar=c(4,14,8,4), cex=0.75, las=1)
 
 x_max = max(top_harmful_event$total_injuries);
 
@@ -114,32 +220,64 @@ barplot(top_harmful_event$total_injuries,
         horiz=TRUE, 
         names.arg = top_harmful_event$EVTYPE, 
         xlim = c(0, ceiling(x_max/10^floor(log10(x_max)))*10^floor(log10(x_max))), 
-        
         ylim=c(0,nb_top_event), 
         main=paste0("Total Injuries of the top ", nb_top_event, " Event Type"), 
-        xlab ="Total Fatalities", 
+        xlab ="Total Injuries", 
         ylab = ""
     )
-
-
-#verify that there is no missing values in the selected subset
-
-number.of.na <- length(which(is.na(harmful_event)))
-number.of.na
-
-```
-## Results 
-### Harm to population
-
-```{r cache=TRUE}
-
-
-
 ```
 
+## Damage to the economy
 
-    The analysis document must have at least one figure containing a plot.
+From the reduced dataset **storm_damage**, we summarize the economic damages by each of the event type based on 
 
-    Your analyis must have no more than three figures. Figures may have multiple plots in them (i.e. panel plots), but there cannot be more than three figures total.
+1. total property and crop damages
+2. number of events with property damages
+3. number of events with crop damages
+
+Only the top `r nb_top_event` events are selected based on the order enumarated above.
+
+```{r extract_economic, cache=TRUE}
+economic_damage <- storm_damage %>% 
+                summarise(total_prop_damage = sum(PROP_DAMAGE_VALUE),
+                          total_prop_event=sum(PROPDMG>0),
+                          total_crop_damage = sum(CROP_DAMAGE_VALUE),
+                          total_crop_event=sum(CROPDMG>0),
+                          prop_damage_per_event = total_prop_event/total_prop_event, 
+                          crop_damage_per_event = total_crop_event/total_crop_event
+                          ) %>%
+                arrange(desc(total_prop_damage+total_crop_damage), 
+                        desc(total_prop_event), 
+                        desc(total_crop_event)
+                        )
+
+top_economic_damage <-  economic_damage[1:nb_top_event,]
+
+## prepare to draw stacked barplot
+bplot_data <- rbind(property_damage = top_economic_damage$total_prop_damage,
+                    crop_damage = top_economic_damage$total_crop_damage)
+
+```
+The total economic loss due to **`r top_economic_damage$EVTYPE[1]`** is highest followed by **`r top_economic_damage$EVTYPE[2]`** and **`r top_economic_damage$EVTYPE[3]`**.
+
+```{r econ_event_plot, cache=TRUE, fig.cap=paste("Top",nb_top_event,"Events causing Economic Damages")}
+par(mar=c(4,14,8,4), cex=0.75, las=1)
+
+abs_max <- max(top_economic_damage$total_prop_damage+top_economic_damage$total_crop_damage)
+x_scale <- 10^floor(log10(abs_max))
+
+barplot(bplot_data, 
+        horiz=TRUE, 
+        names.arg = top_economic_damage$EVTYPE, 
+        xlim = c(0, x_max = ceiling(abs_max/x_scale))*x_scale, 
+        ylim=c(0,nb_top_event), 
+        main=paste0("Total Damage of the top ", nb_top_event, " Event Type"), 
+        xlab ="Total Prop Damage Value, USD", 
+        ylab = "",
+        col=c("red","green")
+    )
+
+legend("topright", legend = c("Property Damage", "Crop Damage"), fill=c("red","green"))
+```
 
 
