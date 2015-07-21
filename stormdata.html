@@ -604,7 +604,7 @@ legend(&quot;topright&quot;, legend = c(&quot;Property Damage&quot;, &quot;Crop 
 <div id="economic-property-damages-per-event" class="section level3">
 <h3>Economic property damages per event</h3>
 <p>The table below shows the top 20 events based on the average property damages per event type.</p>
-<pre class="r"><code># rearrange harmful_event
+<pre class="r"><code># rearrange economic_damage
 economic_damage &lt;- economic_damage %&gt;%
                 arrange(desc(average_prop_damage_per_event))
 
@@ -751,7 +751,7 @@ kable(top_prop_damage_per_event)</code></pre>
 <div id="economic-crop-damages-per-event" class="section level3">
 <h3>Economic crop damages per event</h3>
 <p>The table below shows the top 20 events based on the average crop damages per event type.</p>
-<pre class="r"><code># rearrange harmful_event
+<pre class="r"><code># rearrange economic_damage
 economic_damage &lt;- economic_damage %&gt;%
                 arrange(desc(average_crop_damage_per_event))
 

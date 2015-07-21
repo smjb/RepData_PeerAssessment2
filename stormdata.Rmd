@@ -326,7 +326,7 @@ The table below shows the top `r nb_top_event` events based on the average prope
 
 
 ```{r prop_loss_per_event_stat, cache=TRUE}
-# rearrange harmful_event
+# rearrange economic_damage
 economic_damage <- economic_damage %>%
                 arrange(desc(average_prop_damage_per_event))
 
@@ -346,7 +346,7 @@ kable(top_prop_damage_per_event)
 The table below shows the top `r nb_top_event` events based on the average crop damages per event type.
 
 ```{r crop_loss_per_event_stat, cache=TRUE}
-# rearrange harmful_event
+# rearrange economic_damage
 economic_damage <- economic_damage %>%
                 arrange(desc(average_crop_damage_per_event))
 
